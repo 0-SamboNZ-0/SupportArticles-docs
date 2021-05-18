@@ -176,7 +176,7 @@ If it is not a priority to maintain the CRL distribution point and AIA in Active
 ### Remove all Certification Services objects from Active Directory
 
 > [!NOTE]
-> You should not remove certificate templates from Active Directory until after you remove all CA objects in the Active Directory forest.
+> You should not remove certificate templates from Active Directory unless you have decommissioned ALL CAs in the Active Directory forest and have removed all CA objects from Active Directory.
 
 To remove all Certification Services objects from Active Directory, follow these steps:
 
@@ -194,78 +194,87 @@ To remove all Certification Services objects from Active Directory, follow these
 8. In the left pane of the Active Directory Sites and Services MMC snap-in, select the **Certification Authorities** node.
 9. In the right pane, right-click the **CertificationAuthority** object for your CA, select **Delete**, and then select **Yes**.
 10. In the left pane of the Active Directory Sites and Services MMC snap-in, select the **Enrollment Services** node.
-
 11. In the right pane, verify that the **pKIEnrollmentService** object for your CA was removed when Certificate Services was uninstalled. If the object is not deleted, right-click the object, select **Delete**, and then select **Yes**.
+12. In the left pane of the Active Directory Sites and Services MMC snap-in, select the **KRA** node.
+13. In the right pane, verify that the **msPKI-PrivateKeyRecoveryAgent** object for your CA was removed when Certificate Services was uninstalled. If the object is not deleted, right-click the object, select **Delete**, and then select **Yes**.
 
-12. If you did not locate all the objects, some objects may be left in the Active Directory after you perform these steps. To clean up after a CA that may have left objects in Active Directory, follow these steps to determine whether any AD objects remain:
-    1. Type the following command at a command line, and then press ENTER:
+14. If you did not locate all the objects, some objects may be left in the Active Directory after you perform these steps. To clean up after a CA that may have left objects in Active Directory, follow these steps to determine whether any AD objects remain:
+
+In this command, **CACommonName** represents the **Name** value that you determined in step 1. For example, if the **Name** value is **CA1 Contoso** and the **Forest Root Domain** is **contoso.com**.
+
+   a. Type the following command at a command line, and then press ENTER:
 
         ```console
-        ldifde -r "cn= CACommonName" -d "CN=Public Key Services,CN=Services,CN=Configuration,DC= ForestRoot,DC=com" -f output.ldf
+        ldifde -r "cn=CACommonName" -d "CN=Public Key Services,CN=Services,CN=Configuration,DC=ForestRoot,DC=com" -f RemainingCAObjects.ldf
         ```
-
-        In this command, **CACommonName** represents the **Name** value that you determined in step 1. For example, if the **Name** value is CA1 Contoso, type the following:
 
         ```console
         ldifde -r "cn=CA1 Contoso" -d "cn=public key services,cn=services,cn=configuration,dc=contoso,dc=com" -f remainingCAobjects.ldf
         ```
 
-    2. Open the *remainingCAobjects.ldf* file in Notepad. Replace the term **changetype: add** with **changetype: delete**. Then, verify whether the Active Directory objects that you will delete are legitimate.
+   b. Open the *remainingCAobjects.ldf* file in Notepad. Replace the term **changetype: add** with **changetype: delete**. Then, verify whether the Active Directory objects that you will delete are legitimate.
+    
+   c. In the *remainingCAobjects.ldf* file, delete all lines following the **changetype: delete** line.  Only the first 2 lines should remain.
 
-    3. At a command prompt, type the following command, and then press ENTER to delete the remaining CA objects from Active Directory:
+   d. At a command prompt, type the following command, and then press ENTER to delete the remaining CA objects from Active Directory:
 
         ```console
         ldifde -i -f remainingCAobjects.ldf
         ```
 
-13. Delete the certificate templates if you are sure that all of the certificate authorities have been deleted. Repeat step 12 to determine whether any AD objects remain.
+15. Delete the certificate templates **if you are sure that all of the certificate authorities in the forest have been decommissioned and their Active Directory objects deleted.** Repeat step 12 to determine whether any AD objects remain.
 
+To delete the certificate templates, follow these steps.
+    a. In the left pane of the **Active Directory Sites and Services** MMC snap-in, select the Certificate Templates folder.
+    b. In the right pane, select a certificate template, and then press Ctrl+A to select all templates. Right-click the selected templates, select **Delete**, and then select **Yes**.
+    
     > [!IMPORTANT]
-    > You must not delete the certificate templates unless all the certificate authorities have been deleted. If the templates are accidentally deleted, follow these steps:
-
-    1. Make sure that you are logged on to a server that is running Certificate Services as Enterprise administrator.
-    2. At a command prompt, type the following command, and then press ENTER:
+    > You must not delete the certificate templates unless ALL the certificate authorities in the forest have been decommissioned and their Active Directory objects deleted. If the templates are accidentally deleted, follow these steps:
+    
+   a. Make sure that you are logged on to a server that is running Certificate Services as Enterprise administrator.
+   
+   b. At a command prompt, type the following command, and then press ENTER:
 
         ```console
         cd %windir%\system32
         ```
 
-    3. Type the following command, and then press ENTER:
+   c. Type the following command, and then press ENTER:
 
         ```console
         regsvr32 /i:i /n /s certcli.dll
         ```
 
-        This action re-creates the certificate templates in Active Directory.
+This action re-creates the certificate templates in Active Directory.
 
-    To delete the certificate templates, follow these steps.
-    1. In the left pane of the **Active Directory Sites and Services** MMC snap-in, select the Certificate Templates folder.
-    2. In the right pane, select a certificate template, and then press Ctrl+A to select all templates. Right-click the selected templates, select **Delete**, and then select **Yes**.
+    
 
 ## Step 7 - Delete certificates published to the NtAuthCertificates object
 
-After you delete the CA objects, you have to delete the CA certificates that are published to the `NtAuthCertificates` object. Use either of the following commands to delete certificates from within the `NTAuthCertificates` store:
-
-```console
-certutil -viewdelstore " ldap:///CN=NtAuthCertificates,CN=Public Key
-Services,...,DC=ForestRoot,DC=com?cACertificate?base?objectclass=certificationAuthority"
-```
-
-```console
-certutil -viewdelstore " ldap:///CN=NtAuthCertificates,CN=Public Key
-Services,...,DC=ForestRoot,DC=com?cACertificate?base?objectclass=pKIEnrollmentService"
-```
-
-> [!NOTE]
-> You must have Enterprise Administrator permissions to perform this task.
-
-The `-viewdelstore` action invokes the certificate selection UI on the set of certificates in the specified attribute. You can view the certificate details. You can cancel out of the selection dialog to make no changes. If you select a certificate, that certificate is deleted when the UI closes and the command is fully executed.
+After you delete the CA objects, you have to delete the CA certificates that are published to the `NtAuthCertificates` object.
 
 Use the following command to see the full LDAP path to the NtAuthCertificates object in your Active Directory:
 
 ```console
 certutil -viewdelstore -? | findstr "CN=NTAuth"
 ```
+
+Use either of the following commands to delete certificates from within the `NTAuthCertificates` store.  Replace **DC=contoso,DC=com** with the name of your **Forest Root Domain**:
+
+```console
+certutil -viewdelstore "ldap:///CN=NtAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=contoso,DC=com?cACertificate?base?objectclass=certificationAuthority"
+```
+
+```console
+certutil -viewdelstore "ldap:///CN=NtAuthCertificates,CN=Public Key Services,CN=Services,CN=Configuration,DC=contoso,DC=com?cACertificate?base?objectclass=pKIEnrollmentService"
+```
+
+> [!NOTE]
+> You must have Enterprise Administrator permissions to perform this task.
+
+The `-viewdelstore` action invokes the certificate selection UI on the set of certificates in the specified attribute. You can view the certificate details and select one for deletion. You can cancel out of the selection dialog to make no changes. If you select a certificate, that certificate is deleted when the UI closes and the command is fully executed.
+
+
 
 ## Step 8 - Delete the CA database
 
@@ -288,7 +297,7 @@ To remove certificates that have been issued to the Windows Server 2000 domain c
     > [!NOTE]
     > The Dsstore.exe utility will try to validate domain controller certificates that are issued to each domain controller. Certificates that do not validate are removed from their respective domain controller.
 
-To remove certificates that were issued to the Windows Server 2003 domain controllers, follow these steps.
+To remove certificates that were issued to Windows Server 2003 or newer domain controllers, follow these steps.
 
 > [!IMPORTANT]
 > Do not use this procedure if you are using certificates that are based on version 1 domain controller templates.
@@ -308,7 +317,7 @@ To force application of the security policy, follow these steps:
      secedit /refreshpolicy machine_policy /enforce
      ```
 
-   - For Windows Server 2003:
+   - For Windows Server 2003 or newer:
 
      ```console
      gpupdate /force
